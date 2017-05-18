@@ -23,11 +23,18 @@ import (
 	"launchpad.net/ubuntu-sdk-tools"
 	"github.com/lxc/lxd/shared"
 	"fmt"
+	"os"
 )
 
 type DRIFixable struct { }
 
 func (*DRIFixable) run(client *lxd.Client, container *shared.ContainerInfo, doFix bool) error {
+	// FIXME: dri device isn't accessible under confinement
+	if os.Getenv("SNAP") != "" {
+		fmt.Fprintf(os.Stderr, "Skipping adding /dev/dri/card*\n")
+		return nil
+	}
+
 	files, err := filepath.Glob("/dev/dri/card*")
 	if err != nil {
 		return err

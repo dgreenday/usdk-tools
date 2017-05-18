@@ -30,7 +30,6 @@ import (
 	"os"
 	"fmt"
 	"log"
-	"os/exec"
 	"strings"
 )
 
@@ -56,31 +55,13 @@ func EnsureLXDInitializedOrDie() {
 	}
 
 	defaultRemoteName  := "ubuntu-sdk-images"
-	remotes := config.Remotes
-	sdkRem, ok := remotes[defaultRemoteName]
-	if ok {
-		if sdkRem.Addr == defaultImageRemote {
-			return
-		} else {
-			cmd := exec.Command("lxc", "remote", "remove", defaultRemoteName)
-			err := cmd.Run()
-			if (err != nil) {
-				fmt.Fprintf(os.Stderr, "Could not remove the remote "+defaultRemoteName+". error: %v\n", err)
-				fmt.Fprintf(os.Stderr, "Please remove it manually.\n", err)
-				os.Exit(1)
-			}
-		}
-	}
 
-	cmd := exec.Command("lxc", "remote", "add", "ubuntu-sdk-images", defaultImageRemote, "--accept-certificate", "--protocol=simplestreams")
-	err := cmd.Run()
-	if (err != nil) {
-		fmt.Fprintf(os.Stderr, "Could not register remote. error: %v\n", err)
-		os.Exit(1)
+	config.Remotes[defaultRemoteName] = lxd.RemoteConfig{
+		Addr:     defaultImageRemote,
+		Static:   true,
+		Public:   true,
+		Protocol: "simplestreams",
 	}
-
-	//make sure config is loaded again
-	globConfig = nil
 }
 
 func GetConfigOrDie ()  (*lxd.Config) {
@@ -89,10 +70,7 @@ func GetConfigOrDie ()  (*lxd.Config) {
 		return globConfig
 	}
 
-	configDir := "$HOME/.config/lxc"
-	if os.Getenv("LXD_CONF") != "" {
-		configDir = os.Getenv("LXD_CONF")
-	}
+	configDir := "$XDG_CONFIG_HOME/ubuntu-sdk-target"
 	configPath := os.ExpandEnv(path.Join(configDir, "config.yml"))
 
 	globConfig, err := lxd.LoadConfig(configPath)
@@ -114,6 +92,15 @@ func GetConfigOrDie ()  (*lxd.Config) {
 
 		if shared.PathExists("/var/lib/lxd/") {
 			fmt.Fprintf(os.Stderr, "If this is your first time using LXD, you should also run: sudo lxd init\n\n")
+		}
+	}
+
+	_, err = lxd.NewClient(globConfig, globConfig.DefaultRemote)
+	if err != nil {
+		os.Setenv("LXD_DIR", "/var/snap/lxd/common/lxd")
+		_, err = lxd.NewClient(globConfig, globConfig.DefaultRemote)
+		if err != nil {
+			log.Fatal("Can't establish a working socket connection: %s", err)
 		}
 	}
 
@@ -193,15 +180,11 @@ func UpdateConfigSync (client *lxd.Client, container string) error {
 	}
 
 	command := []string {
-		"exec", container, "--",
 		"bash", "-c", "rm /etc/ld.so.cache; ldconfig",
 	}
 
-	cmd := exec.Command("lxc", command...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
+	_, err = client.Exec(container, command, nil, os.Stdin, os.Stdout, os.Stderr, nil, 0, 0)
+	return err
 }
 
 func AddDeviceSync (client *lxd.Client, container, devname, devtype string, props []string) error{

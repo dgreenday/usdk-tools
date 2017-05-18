@@ -73,7 +73,9 @@ func (c *createCmd) run(args []string) error {
 	}
 
 	if os.Getuid() != 0 {
-		return fmt.Errorf("This command needs to run as root")
+		if os.Getenv("SNAP") == "" {
+			return fmt.Errorf("This command needs to run as root")
+		}
 	}
 
 	config := ubuntu_sdk_tools.GetConfigOrDie()
@@ -148,6 +150,7 @@ func (c *createCmd) run(args []string) error {
 		return err
 	}
 
+	fmt.Fprintf(os.Stderr, "Initializing progress tracker\n")
 	c.initProgressTracker(client, resp.Operation)
 	err = client.WaitForSuccess(resp.Operation)
 
@@ -179,18 +182,21 @@ func (c *createCmd) run(args []string) error {
 	}
 
 	//add the required devices
+	fmt.Fprintf(os.Stderr, "Adding devices to the container\n")
 	err = ubuntu_sdk_tools.AddDeviceSync(client, c.name, "tmp", "disk", []string{"source=/tmp", "path=/tmp", "recursive=true"})
 	if err != nil {
 		ubuntu_sdk_tools.RemoveContainerSync(client, c.name)
 		return err
 	}
 
+	fmt.Fprintf(os.Stderr, "Adding the user\n")
 	err = RegisterUserInContainer(client, c.name, nil, c.createSupGroups)
 	if err != nil {
 		ubuntu_sdk_tools.RemoveContainerSync(client, c.name)
 		return err
 	}
 
+	fmt.Fprintf(os.Stderr, "Updating the configuration\n")
 	ubuntu_sdk_tools.UpdateConfigSync(client, c.name)
 	if err != nil {
 		ubuntu_sdk_tools.RemoveContainerSync(client, c.name)

@@ -66,6 +66,9 @@ var commands = map[string]command{
 }
 
 func main() {
+	// FIXME: lp#1583259 Set environment variables in snapcraft.yaml
+	os.Setenv("XDG_CONFIG_HOME", os.ExpandEnv("$HOME"))
+
 	if err := run(); err != nil {
 		// The action we take depends on the error we get.
 		msg := fmt.Sprintf("error: %v", err)

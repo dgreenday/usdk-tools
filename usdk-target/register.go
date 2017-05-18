@@ -85,12 +85,10 @@ func userFromEnv () (*string, error) {
 		key = "PKEXEC_UID"
 		env = os.Getenv(key)
 		if len(env) == 0 {
-			return nil, nil
+			fmt.Fprintf(os.Stderr, "Neither SUDO_UID nor PKEXEC_UID set\n")
+			env = strconv.Itoa(os.Getuid())
 		}
-		fmt.Printf("%s\n", env)
 	}
-
-	fmt.Printf("%s\n", env)
 
 	user, err := user.LookupId(env)
 	if err != nil {
@@ -128,11 +126,6 @@ func RegisterUserInContainer (client *lxd.Client, containerName string, userName
 
 	if pw.Uid == 0 {
 		return fmt.Errorf("Registering root is not possible")
-	}
-
-	shadow,err := ubuntu_sdk_tools.Getspnam(*userName)
-	if (err != nil) {
-		return fmt.Errorf("Querying the password entry failed. error: %v", err)
 	}
 
 	groups,err := ubuntu_sdk_tools.GetGroups()
@@ -175,11 +168,9 @@ func RegisterUserInContainer (client *lxd.Client, containerName string, userName
 
 		fmt.Printf("Creating group %s\n", group.Name)
 
-		cmd := exec.Command("lxc", "exec", containerName, "--", "groupadd", "-g",  strconv.FormatUint(uint64(group.Gid),10), group.Name)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err = cmd.Start()
-		if err := cmd.Wait(); err != nil {
+		args := []string{"groupadd", "-g", strconv.FormatUint(uint64(group.Gid), 10), group.Name}
+		_, err := client.Exec(containerName, args, nil, os.Stdin, os.Stdout, os.Stderr, nil, 0, 0)
+		if err != nil {
 			print ("GroupAdd returned error\n")
 			if exiterr, ok := err.(*exec.ExitError); ok {
 				if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
@@ -205,13 +196,20 @@ func RegisterUserInContainer (client *lxd.Client, containerName string, userName
 	fmt.Printf("Creating user %s\n", pw.LoginName)
 
 	command := []string {
-		"exec", containerName, "--",
 		"useradd", "--no-create-home",
 		"-u", strconv.FormatUint(uint64(pw.Uid), 10),
 		"--gid", strconv.FormatUint(uint64(pw.Gid), 10),
 		"--home-dir", pw.Dir,
 		"-s", "/bin/bash",
-		"-p", shadow.Sp_pwdp,
+	}
+
+	if os.Getenv("SNAP") == "" {
+		shadow, err := ubuntu_sdk_tools.Getspnam(*userName)
+		if (err != nil) {
+			return fmt.Errorf("Querying the password entry failed. error: %v", err)
+		}
+		command = append(command, "-p")
+		command = append(command, shadow.Sp_pwdp)
 	}
 
 	containsVideoGroup := false
@@ -231,10 +229,6 @@ func RegisterUserInContainer (client *lxd.Client, containerName string, userName
 	}
 
 	command = append(command,pw.LoginName)
-
-	cmd := exec.Command("lxc", command...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
+	_, err = client.Exec(containerName, command, nil, os.Stdin, os.Stdout, os.Stderr, nil, 0, 0)
+	return err
 }

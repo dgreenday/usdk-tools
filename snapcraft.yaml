@@ -1,0 +1,23 @@
+name: ubuntu-sdk-target
+version: '0.6'
+summary: Command line interface for creating and building with SDK containers
+description: |
+  This command line tool allows creating, building with, updating and
+  removing SDK containers based on LXD.
+
+grade: devel
+confinement: strict
+
+apps:
+    ubuntu-sdk-target:
+        command: usdk-target
+        plugs: [network, lxd]
+
+parts:
+  ubuntu-sdk-tools:
+    plugin: go
+    go-importpath: launchpad.net/ubuntu-sdk-tools
+    go-packages:
+      - launchpad.net/ubuntu-sdk-tools/usdk-target
+    source: .
+    build-packages: [bzr, gcc]
