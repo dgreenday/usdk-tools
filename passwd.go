@@ -85,7 +85,7 @@ func Getpwnam(username string) (*Passwd, error) {
 
 	return &Passwd{
 		Uid: uint32(pwd.pw_uid),
-		Gid: uint32(pwd.pw_uid),
+		Gid: uint32(pwd.pw_gid),
 		Dir: C.GoString(pwd.pw_dir),
 		Shell: C.GoString(pwd.pw_shell),
 		LoginName: C.GoString(pwd.pw_name)}, nil

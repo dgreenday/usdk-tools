@@ -124,6 +124,8 @@ func RegisterUserInContainer (client *lxd.Client, containerName string, userName
 		return fmt.Errorf("Querying the user entry failed. error: %v", err)
 	}
 
+	fmt.Printf("Going to recreate current user in the container, uid: %d, gid: %d\n", pw.Uid, pw.Gid)
+
 	if pw.Uid == 0 {
 		return fmt.Errorf("Registering root is not possible")
 	}
