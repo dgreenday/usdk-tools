@@ -141,7 +141,7 @@ func (c *createCmd) run(args []string) error {
 	if c.enableUpdates {
 		conf["user.click-updates-enabled"] = "true"
 	}
-	conf["raw.lxc"] = "lxc.aa_profile = unconfined"
+	conf["raw.lxc"] = "lxc.apparmor.profile = unconfined"
 
 	devicesMap := map[string]shared.Device{}
 
